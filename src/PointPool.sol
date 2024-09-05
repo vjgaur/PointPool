@@ -70,4 +70,20 @@ contract PointPool is ERC20, Ownable, BaseHook {
             uint256(uint128(-delta.amount1()));
         addPoints(sender, pointsToAward);
     }
+
+    function afterSwapCallback(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.SwapParams calldata params,
+        BalanceDelta delta
+    ) internal {
+        uint256 amount0 = delta.amount0() >= 0
+            ? uint256(uint128(delta.amount0()))
+            : uint256(uint128(-delta.amount0()));
+        uint256 amount1 = delta.amount1() >= 0
+            ? uint256(uint128(delta.amount1()))
+            : uint256(uint128(-delta.amount1()));
+        uint256 pointsToAward = amount0 + amount1;
+        addPoints(sender, pointsToAward);
+    }
 }
