@@ -49,5 +49,30 @@ contract PointPool is ERC20, Ownable, BaseHook {
             });
     }
 
-    // Implementing hook functions later
+    mapping(address => uint256) public userPoints;
+
+    function addPoints(address user, uint256 amount) internal {
+        userPoints[user] += amount;
+        _mint(user, amount);
+    }
+
+    function getUserPoints(address user) external view returns (uint256) {
+        return userPoints[user];
+    }
+
+    function afterAddLiquidity(
+        address sender,
+        PoolKey calldata key,
+        IPoolManager.ModifyLiquidityParams calldata params,
+        BalanceDelta delta,
+        bytes calldata hookData
+    ) external override returns (bytes4) {
+        uint256 pointsToAward = uint256(
+            uint128(-delta.amount0()) + uint256(uint128(-delta.amount1()))
+        );
+        addPoints(sender, pointsToAward);
+        return BaseHook.afterAddLiquidity.selector;
+    }
+
+
 }
