@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
+import {AggregatorV3Interface} from "@chainlink/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {ERC20} from "solmate/src/tokens/ERC20.sol";
 
