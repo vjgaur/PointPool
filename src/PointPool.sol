@@ -15,15 +15,19 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 import {Hooks} from "v4-core/libraries/Hooks.sol";
 
+/**
+ * @title PointPool
+ * @dev A contract that implements a point system for Uniswap V4 liquidity providers and traders.
+ * It uses Chainlink price feeds to dynamically allocate points based on the USD value of ETH.
+ */
 contract PointPool is ERC20, Ownable, BaseHook {
+    AggregatorV3Interface public immutable ethUsdPriceFeed;
+
     constructor(
-        IPoolManager _poolManager
-    )
-        ERC20("PointPool", "PP", 18) // Added decimals parameter
-        Ownable(msg.sender) // OpenZeppelin's Ownable doesn't take parameters in the constructor
-        BaseHook(_poolManager)
-    {
-        _transferOwnership(msg.sender); // Set the owner explicitly
+        IPoolManager _poolManager,
+        address _ethUsdPriceFeed
+    ) ERC20("PointPool", "PP", 18) Ownable(msg.sender) BaseHook(_poolManager) {
+        ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
     }
 
     function getHookPermissions()
@@ -64,8 +68,6 @@ contract PointPool is ERC20, Ownable, BaseHook {
 
     function afterAddLiquidityCallback(
         address sender,
-        PoolKey calldata key,
-        IPoolManager.ModifyLiquidityParams calldata params,
         BalanceDelta delta
     ) internal {
         uint256 pointsToAward = uint256(uint128(-delta.amount0())) +
@@ -73,12 +75,7 @@ contract PointPool is ERC20, Ownable, BaseHook {
         addPoints(sender, pointsToAward);
     }
 
-    function afterSwapCallback(
-        address sender,
-        PoolKey calldata key,
-        IPoolManager.SwapParams calldata params,
-        BalanceDelta delta
-    ) internal {
+    function afterSwapCallback(address sender, BalanceDelta delta) internal {
         uint256 pointsToAward = uint256(abs(delta.amount0())) +
             uint256(abs(delta.amount1()));
         addPoints(sender, pointsToAward);
@@ -86,5 +83,20 @@ contract PointPool is ERC20, Ownable, BaseHook {
 
     function abs(int256 x) internal pure returns (int256) {
         return x >= 0 ? x : -x;
+    }
+    function getEthUsdPrice() public view returns (uint256) {
+        (, int256 price, , , ) = ethUsdPriceFeed.latestRoundData();
+        require(price > 0, "Invalid ETH-USD price");
+        return uint256(price);
+    }
+
+    function calculatePoints(
+        uint256 ethAmount
+    ) internal view returns (uint256) {
+        uint256 ethUsdPrice = getEthUsdPrice();
+        // Convert ETH amount to USD value (ETH has 18 decimals, Chainlink price has 8 decimals)
+        uint256 usdValue = (ethAmount * ethUsdPrice) / 1e18;
+        // Award 1 point per $10 of value
+        return usdValue / (10 * 1e8);
     }
 }
