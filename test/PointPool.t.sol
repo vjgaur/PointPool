@@ -51,21 +51,17 @@ contract PointPoolTest is Test, Deployers {
 
         mockPriceFeed = new MockEthUsdPriceFeed(2000 * 1e8); // $2000 per ETH
 
-        uint160 flags = uint160(
-            Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
-        );
-        deployCodeTo(
+        address pointPoolAddress = deployCode(
             "PointPool.sol",
             abi.encode(
                 IPoolManager(address(manager)),
                 "Points Token",
                 "PP",
                 address(mockPriceFeed)
-            ),
-            address(flags)
+            )
         );
 
-        pointPool = PointPool(address(flags));
+        pointPool = PointPool(pointPoolAddress);
 
         token.approve(address(swapRouter), type(uint256).max);
         token.approve(address(modifyLiquidityRouter), type(uint256).max);
@@ -86,13 +82,12 @@ contract PointPoolTest is Test, Deployers {
         uint160 sqrtPriceAtTickLower = TickMath.getSqrtPriceAtTick(-60);
         uint160 sqrtPriceAtTickUpper = TickMath.getSqrtPriceAtTick(60);
 
-        (uint256 amount0Delta, uint256 amount1Delta) = LiquidityAmounts
-            .getAmountsForLiquidity(
-                SQRT_PRICE_1_1,
-                sqrtPriceAtTickLower,
-                sqrtPriceAtTickUpper,
-                1 ether
-            );
+        (uint256 amount0Delta, ) = LiquidityAmounts.getAmountsForLiquidity(
+            SQRT_PRICE_1_1,
+            sqrtPriceAtTickLower,
+            sqrtPriceAtTickUpper,
+            1 ether
+        );
 
         modifyLiquidityRouter.modifyLiquidity{value: amount0Delta}(
             key,
