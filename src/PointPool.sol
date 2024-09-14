@@ -5,14 +5,10 @@ import {AggregatorV3Interface} from "./AggregatorV3Interface.sol";
 
 import {BaseHook} from "v4-periphery/src/base/hooks/BaseHook.sol";
 import {ERC20} from "solmate/src/tokens/ERC20.sol";
-
 import {CurrencyLibrary, Currency} from "v4-core/types/Currency.sol";
 import {PoolKey} from "v4-core/types/PoolKey.sol";
 import {BalanceDeltaLibrary, BalanceDelta} from "v4-core/types/BalanceDelta.sol";
-
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
 import {Hooks} from "v4-core/libraries/Hooks.sol";
 
 /**
@@ -20,13 +16,18 @@ import {Hooks} from "v4-core/libraries/Hooks.sol";
  * @dev A contract that implements a point system for Uniswap V4 liquidity providers and traders.
  * It uses Chainlink price feeds to dynamically allocate points based on the USD value of ETH.
  */
-contract PointPool is ERC20, Ownable, BaseHook {
+contract PointPool is ERC20, BaseHook {
+    using CurrencyLibrary for Currency;
+    using BalanceDeltaLibrary for BalanceDelta;
+
     AggregatorV3Interface public immutable ethUsdPriceFeed;
 
     constructor(
-        IPoolManager _poolManager,
+        IPoolManager _manager,
+        string memory _name,
+        string memory _symbol,
         address _ethUsdPriceFeed
-    ) ERC20("PointPool", "PP", 18) Ownable(msg.sender) BaseHook(_poolManager) {
+    ) BaseHook(_manager) ERC20(_name, _symbol, 18) {
         ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
     }
 
@@ -66,23 +67,40 @@ contract PointPool is ERC20, Ownable, BaseHook {
         return userPoints[user];
     }
 
-    function afterAddLiquidityCallback(
+    function afterSwap(
         address sender,
-        BalanceDelta delta
-    ) internal {
-        uint256 pointsToAward = uint256(uint128(-delta.amount0())) +
-            uint256(uint128(-delta.amount1()));
+        PoolKey calldata,
+        IPoolManager.SwapParams calldata params,
+        BalanceDelta delta,
+        bytes calldata
+    ) external override returns (bytes4, int128) {
+        if (!params.zeroForOne) return (this.afterSwap.selector, 0);
+        uint256 ethAmount;
+        if (params.amountSpecified < 0) {
+            ethAmount = uint256(-params.amountSpecified);
+        } else {
+            ethAmount = uint256(abs(delta.amount0()));
+        }
+        uint256 pointsToAward = calculatePoints(ethAmount);
         addPoints(sender, pointsToAward);
+        return (this.afterSwap.selector, 0);
+    }
+    function afterAddLiquidity(
+        address sender,
+        PoolKey calldata,
+        IPoolManager.ModifyLiquidityParams calldata,
+        BalanceDelta delta,
+        BalanceDelta,
+        bytes calldata
+    ) external override returns (bytes4, BalanceDelta) {
+        uint256 ethAmount = uint256(abs(delta.amount0()));
+        uint256 pointsToAward = calculatePoints(ethAmount);
+        addPoints(sender, pointsToAward);
+        return (this.afterAddLiquidity.selector, delta);
     }
 
-    function afterSwapCallback(address sender, BalanceDelta delta) internal {
-        uint256 pointsToAward = uint256(abs(delta.amount0())) +
-            uint256(abs(delta.amount1()));
-        addPoints(sender, pointsToAward);
-    }
-
-    function abs(int256 x) internal pure returns (int256) {
-        return x >= 0 ? x : -x;
+    function abs(int256 x) internal pure returns (uint256) {
+        return x >= 0 ? uint256(x) : uint256(-x);
     }
     function getEthUsdPrice() public view returns (uint256) {
         (, int256 price, , , ) = ethUsdPriceFeed.latestRoundData();
