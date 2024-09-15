@@ -43,7 +43,7 @@ contract PointPoolTest is Test, Deployers {
 
     function setUp() public {
         deployFreshManagerAndRouters();
-
+        require(address(manager) != address(0), "Manager address is zero");
         token = new MockERC20("Test Token", "TEST", 18);
         tokenCurrency = Currency.wrap(address(token));
         token.mint(address(this), 1000 ether);
@@ -51,17 +51,25 @@ contract PointPoolTest is Test, Deployers {
 
         mockPriceFeed = new MockEthUsdPriceFeed(2000 * 1e8); // $2000 per ETH
 
-        address pointPoolAddress = deployCode(
-            "PointPool.sol",
-            abi.encode(
-                IPoolManager(address(manager)),
-                "Points Token",
-                "PP",
-                address(mockPriceFeed)
+        console.log("Deploying PointPool with manager:", address(manager));
+        console.log("Using mock price feed at:", address(mockPriceFeed));
+
+        uint160 flags = uint160(
+            Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
+        );
+        address hookAddress = address(
+            uint160(
+                uint256(keccak256(abi.encode(keccak256("PointPool"), flags)))
             )
         );
 
-        pointPool = PointPool(pointPoolAddress);
+        deployCodeTo(
+            "PointPool.sol",
+            abi.encode(manager, "Points Token", "PP"),
+            hookAddress
+        );
+
+        pointPool = PointPool(hookAddress);
 
         token.approve(address(swapRouter), type(uint256).max);
         token.approve(address(modifyLiquidityRouter), type(uint256).max);
