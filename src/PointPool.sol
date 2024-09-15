@@ -91,13 +91,12 @@ contract PointPool is ERC20, BaseHook {
         PoolKey calldata,
         IPoolManager.ModifyLiquidityParams calldata,
         BalanceDelta delta,
-        BalanceDelta,
         bytes calldata
-    ) external override returns (bytes4, BalanceDelta) {
+    ) external returns (bytes4, BalanceDelta) {
         uint256 ethAmount = uint256(abs(delta.amount0()));
         uint256 pointsToAward = calculatePoints(ethAmount);
         addPoints(sender, pointsToAward);
-        return (this.afterAddLiquidity.selector, delta);
+        return (bytes4(keccak256("afterAddLiquidity()")), delta);
     }
 
     function abs(int256 x) internal pure returns (uint256) {

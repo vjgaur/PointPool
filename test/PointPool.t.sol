@@ -57,7 +57,7 @@ contract PointPoolTest is Test, Deployers {
         uint160 flags = uint160(
             Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
         );
-        address hookAddress = address(
+        address pointPoolAddress = address(
             uint160(
                 uint256(keccak256(abi.encode(keccak256("PointPool"), flags)))
             )
@@ -65,11 +65,16 @@ contract PointPoolTest is Test, Deployers {
 
         deployCodeTo(
             "PointPool.sol",
-            abi.encode(manager, "Points Token", "PP"),
-            hookAddress
+            abi.encode(
+                IPoolManager(address(manager)),
+                "Points Token",
+                "PP",
+                address(mockPriceFeed)
+            ),
+            pointPoolAddress
         );
 
-        pointPool = PointPool(hookAddress);
+        pointPool = PointPool(pointPoolAddress);
 
         token.approve(address(swapRouter), type(uint256).max);
         token.approve(address(modifyLiquidityRouter), type(uint256).max);
