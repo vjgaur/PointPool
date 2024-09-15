@@ -96,7 +96,7 @@ contract PointPool is ERC20, BaseHook {
         uint256 ethAmount = uint256(abs(delta.amount0()));
         uint256 pointsToAward = calculatePoints(ethAmount);
         addPoints(sender, pointsToAward);
-        return (bytes4(keccak256("afterAddLiquidity()")), delta);
+        return (this.afterAddLiquidity.selector, delta);
     }
 
     function abs(int256 x) internal pure returns (uint256) {

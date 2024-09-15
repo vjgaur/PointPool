@@ -69,7 +69,7 @@ contract PointPoolTest is Test, Deployers {
                 IPoolManager(address(manager)),
                 "Points Token",
                 "PP",
-                address(mockPriceFeed)
+                mockPriceFeed
             ),
             pointPoolAddress
         );
