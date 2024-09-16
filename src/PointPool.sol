@@ -23,6 +23,15 @@ contract PointPool is ERC20, BaseHook {
 
     AggregatorV3Interface public immutable ethUsdPriceFeed;
 
+    mapping(address => uint256) public userLevels;
+    mapping(address => uint256) public userBadges;
+
+    uint256 constant POINTS_PER_LEVEL = 100;
+    uint256 constant MAX_LEVEL = 100;
+
+    event LevelUp(address indexed user, uint256 newLevel);
+    event BadgeEarned(address indexed user, uint256 badgeId);
+
     constructor(
         IPoolManager _manager,
         string memory _name,
@@ -59,11 +68,6 @@ contract PointPool is ERC20, BaseHook {
 
     mapping(address => uint256) public userPoints;
 
-    function addPoints(address user, uint256 amount) internal {
-        userPoints[user] += amount;
-        _mint(user, amount);
-    }
-
     function getUserPoints(address user) external view returns (uint256) {
         return userPoints[user];
     }
@@ -92,11 +96,11 @@ contract PointPool is ERC20, BaseHook {
         IPoolManager.ModifyLiquidityParams calldata,
         BalanceDelta delta,
         bytes calldata
-    ) external returns (bytes4, BalanceDelta) {
+    ) external returns (bytes4) {
         uint256 ethAmount = uint256(abs(delta.amount0()));
         uint256 pointsToAward = calculatePoints(ethAmount);
         addPoints(sender, pointsToAward);
-        return (this.afterAddLiquidity.selector, delta);
+        return BaseHook.afterAddLiquidity.selector;
     }
 
     function abs(int256 x) internal pure returns (uint256) {
@@ -116,5 +120,35 @@ contract PointPool is ERC20, BaseHook {
         uint256 usdValue = (ethAmount * ethUsdPrice) / 1e18;
         // Award 1 point per $10 of value
         return usdValue / (10 * 1e8);
+    }
+
+    function calculateLevel(uint256 points) public pure returns (uint256) {
+        return (points / POINTS_PER_LEVEL) + 1;
+    }
+
+    function awardBadge(address user, uint256 badgeId) internal {
+        if ((userBadges[user] & (1 << badgeId)) == 0) {
+            userBadges[user] |= (1 << badgeId);
+            emit BadgeEarned(user, badgeId);
+        }
+    }
+
+    function checkLevelUpAndBadges(address user) internal {
+        uint256 newLevel = calculateLevel(ERC20(address(this)).balanceOf(user));
+        if (newLevel > userLevels[user]) {
+            userLevels[user] = newLevel;
+            emit LevelUp(user, newLevel);
+
+            // Award badges based on level milestones
+            if (newLevel >= 10) awardBadge(user, 0); // Bronze badge
+            if (newLevel >= 25) awardBadge(user, 1); // Silver badge
+            if (newLevel >= 50) awardBadge(user, 2); // Gold badge
+            if (newLevel == MAX_LEVEL) awardBadge(user, 3); // Max level badge
+        }
+    }
+
+    function addPoints(address user, uint256 points) internal {
+        _mint(user, points);
+        checkLevelUpAndBadges(user);
     }
 }
