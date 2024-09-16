@@ -26,8 +26,8 @@ contract PointPool is ERC20, BaseHook {
     mapping(address => uint256) public userLevels;
     mapping(address => uint256) public userBadges;
 
-    uint256 constant POINTS_PER_LEVEL = 100;
-    uint256 constant MAX_LEVEL = 100;
+    uint256 public constant POINTS_PER_LEVEL = 100;
+    uint256 public constant MAX_LEVEL = 100;
 
     event LevelUp(address indexed user, uint256 newLevel);
     event BadgeEarned(address indexed user, uint256 badgeId);

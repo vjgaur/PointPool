@@ -89,6 +89,18 @@ contract PointPoolTest is Test, Deployers {
         );
     }
 
+    function testInitialLevelAndBadges() public {
+        assertEq(
+            pointPool.userLevels(address(this)),
+            1,
+            "Initial level should be 1"
+        );
+        assertEq(
+            pointPool.userBadges(address(this)),
+            0,
+            "Initial badges should be 0"
+        );
+    }
     function testAfterAddLiquidity() public {
         uint256 initialBalance = pointPool.balanceOf(address(this));
 
@@ -140,5 +152,144 @@ contract PointPoolTest is Test, Deployers {
         uint256 expectedPoints = (0.1 ether * 2000) / (10 * 1e18); // 1 point per $10
 
         assertApproxEqAbs(finalBalance - initialBalance, expectedPoints, 1e15);
+    }
+
+    function testLevelUpOnAddLiquidity() public {
+        uint256 initialLevel = pointPool.userLevels(address(this));
+
+        // Add liquidity to earn points
+        (uint256 amount0Delta, ) = LiquidityAmounts.getAmountsForLiquidity(
+            SQRT_PRICE_1_1,
+            TickMath.getSqrtPriceAtTick(-60),
+            TickMath.getSqrtPriceAtTick(60),
+            1000 ether
+        );
+
+        modifyLiquidityRouter.modifyLiquidity{value: amount0Delta}(
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: -60,
+                tickUpper: 60,
+                liquidityDelta: 1000 ether,
+                salt: bytes32(0)
+            }),
+            ZERO_BYTES
+        );
+
+        uint256 newLevel = pointPool.userLevels(address(this));
+        assertTrue(
+            newLevel > initialLevel,
+            "Level should increase after adding liquidity"
+        );
+    }
+
+    function testBadgeAwardOnLevelUp() public {
+        // Add enough liquidity to reach level 10
+        for (uint i = 0; i < 10; i++) {
+            modifyLiquidityRouter.modifyLiquidity{value: 100 ether}(
+                key,
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: -60,
+                    tickUpper: 60,
+                    liquidityDelta: 100 ether,
+                    salt: bytes32(uint256(i))
+                }),
+                ZERO_BYTES
+            );
+        }
+
+        uint256 badges = pointPool.userBadges(address(this));
+        assertTrue(
+            (badges & (1 << 0)) != 0,
+            "Should have bronze badge at level 10"
+        );
+    }
+
+    function testMultipleBadges() public {
+        // Add enough liquidity to reach level 25
+        for (uint i = 0; i < 25; i++) {
+            modifyLiquidityRouter.modifyLiquidity{value: 100 ether}(
+                key,
+                IPoolManager.ModifyLiquidityParams({
+                    tickLower: -60,
+                    tickUpper: 60,
+                    liquidityDelta: 100 ether,
+                    salt: bytes32(uint256(i))
+                }),
+                ZERO_BYTES
+            );
+        }
+
+        uint256 badges = pointPool.userBadges(address(this));
+        assertTrue((badges & (1 << 0)) != 0, "Should have bronze badge");
+        assertTrue((badges & (1 << 1)) != 0, "Should have silver badge");
+    }
+
+    function testLevelUpOnSwap() public {
+        uint256 initialLevel = pointPool.userLevels(address(this));
+
+        swapRouter.swap{value: 1 ether}(
+            key,
+            IPoolManager.SwapParams({
+                zeroForOne: true,
+                amountSpecified: -1 ether,
+                sqrtPriceLimitX96: TickMath.MIN_SQRT_PRICE + 1
+            }),
+            PoolSwapTest.TestSettings({
+                takeClaims: false,
+                settleUsingBurn: false
+            }),
+            ZERO_BYTES
+        );
+
+        uint256 newLevel = pointPool.userLevels(address(this));
+        assertTrue(newLevel > initialLevel, "Level should increase after swap");
+    }
+
+    function testMaxLevel() public {
+        // Add a very large amount of liquidity to reach max level
+        modifyLiquidityRouter.modifyLiquidity{value: 10000 ether}(
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: -60,
+                tickUpper: 60,
+                liquidityDelta: 10000 ether,
+                salt: bytes32(0)
+            }),
+            ZERO_BYTES
+        );
+
+        uint256 maxLevel = pointPool.MAX_LEVEL();
+        assertEq(
+            pointPool.userLevels(address(this)),
+            maxLevel,
+            "Should not exceed max level"
+        );
+
+        uint256 badges = pointPool.userBadges(address(this));
+        assertTrue((badges & (1 << 3)) != 0, "Should have max level badge");
+    }
+
+    function testNoLevelUpOnInsufficientPoints() public {
+        uint256 initialLevel = pointPool.userLevels(address(this));
+
+        // Add a small amount of liquidity
+        modifyLiquidityRouter.modifyLiquidity{value: 0.1 ether}(
+            key,
+            IPoolManager.ModifyLiquidityParams({
+                tickLower: -60,
+                tickUpper: 60,
+                liquidityDelta: 0.1 ether,
+                salt: bytes32(0)
+            }),
+            ZERO_BYTES
+        );
+
+        uint256 newLevel = pointPool.userLevels(address(this));
+        assertEq(
+            newLevel,
+            initialLevel,
+            "Level should not change on insufficient points"
+        );
     }
 }
