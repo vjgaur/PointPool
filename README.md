@@ -1,67 +1,117 @@
-## Foundry
+# PointPool: Gamified Liquidity Provision for Uniswap V4
 
-**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
+[![Solidity](https://img.shields.io/badge/Solidity-%5E0.8.26-blue)](https://soliditylang.org/)
+[![Foundry](https://img.shields.io/badge/Foundry-Test-green)](https://book.getfoundry.sh/)
 
-Foundry consists of:
+## Overview
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+This project implements a gamification layer on top of Uniswap V4 for decentralized exchange of fungible assets. It introduces a point system, levels, badges, challenges, and quests to enhance user engagement in liquidity provision and trading activities.
 
-## Documentation
+:warning: **Disclaimer**: This implementation is currently in development and is not production-ready. It is intended for educational and demonstration purposes.
 
-https://book.getfoundry.sh/
+## Main Concepts
+
+- **Points**: Earned for providing liquidity and making swaps.
+- **Levels**: Users level up as they accumulate points.
+- **Badges**: Special achievements unlocked at various milestones.
+- **Challenges**: Time-bound tasks that reward users with extra points and badges.
+- **Quests**: A series of challenges that offer substantial rewards upon completion.
+
+## Solidity Features and Practices Demonstrated
+
+- Integration with Uniswap V4 hooks.
+- Use of OpenZeppelin's AccessControl for role-based permissions.
+- Implementation of ERC20 token standard for point representation.
+- Interaction with Chainlink price feeds for dynamic point calculation.
+
+## Configuration
+
+### Constants
+
+- `POINTS_PER_LEVEL`: Number of points required to level up.
+- `MAX_LEVEL`: The maximum achievable level.
+
+## Extrinsics
+
+<details>
+<summary><h3>addLiquidity</h3></summary>
+
+Allows users to add liquidity to a Uniswap V4 pool and earn points.
+
+#### Parameters:
+
+- `sender`: The address adding liquidity.
+- `amount0`: The amount of token0 being added.
+- `amount1`: The amount of token1 being added.
+
+#### Events:
+
+- `LiquidityAdded(address indexed user, uint256 amount0, uint256 amount1, uint256 pointsEarned)`
+
+#### Errors:
+
+- `InsufficientLiquidity`: When the provided liquidity is too low.
+</details>
+
+<details>
+<summary><h3>completeChallenge</h3></summary>
+
+Allows users to complete a challenge and earn rewards.
+
+#### Parameters:
+
+- `challengeId`: The ID of the challenge being completed.
+
+#### Events:
+
+- `ChallengeCompleted(address indexed user, uint256 indexed challengeId, uint256 pointsEarned)`
+
+#### Errors:
+
+- `ChallengeNotActive`: When the challenge is not currently active.
+- `ChallengeAlreadyCompleted`: When the user has already completed this challenge.
+</details>
 
 ## Usage
 
-### Build
+### Deployment
 
-```shell
-$ forge build
+1. Deploy the PointPool contract:
+   ```bash
+   forge create src/PointPool.sol:PointPool --constructor-args <UNISWAP_MANAGER> "PointPool" "PP" <ETH_USD_PRICE_FEED>
+   ```
+   2.Deploy the ChallengeManager contract:
+
+```bash
+forge create src/ChallengeManager.sol:ChallengeManager --constructor-args <POINT_POOL_ADDRESS>
 ```
 
-### Test
+# Interaction
 
-```shell
-$ forge test
+Add liquidity to earn points:
+
+```bash
+cast send <POINT_POOL_ADDRESS> "addLiquidity(uint256,uint256)" 1000000000000000000 1000000000000000000
 ```
 
-### Format
+Complete a challenge:
 
-```shell
-$ forge fmt
+```bash
+cast send <CHALLENGE_MANAGER_ADDRESS> "completeChallenge(uint256)" 1
 ```
 
-### Gas Snapshots
+Development and Testing
+To run the test suite
 
-```shell
-$ forge snapshot
+```bash
+forge test
 ```
 
-### Anvil
+To run a specific test:
 
-```shell
-$ anvil
+```bash
+forge test --match-test testAddLiquidity
 ```
 
-### Deploy
-
-```shell
-$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
-```
-
-### Cast
-
-```shell
-$ cast <subcommand>
-```
-
-### Help
-
-```shell
-$ forge --help
-$ anvil --help
-$ cast --help
-```
-# PointPool
+Contribution
+Contributions to PointPool are welcome. Please ensure that your code adheres to the Solidity style guide and all tests pass before submitting a pull request.
