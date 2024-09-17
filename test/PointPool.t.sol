@@ -89,7 +89,7 @@ contract PointPoolTest is Test, Deployers {
         );
     }
 
-    function testInitialLevelAndBadges() public {
+    function testInitialLevelAndBadges() public view {
         assertEq(
             pointPool.userLevels(address(this)),
             1,

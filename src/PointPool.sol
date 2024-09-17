@@ -11,13 +11,17 @@ import {PoolKey} from "v4-core/types/PoolKey.sol";
 import {BalanceDeltaLibrary, BalanceDelta} from "v4-core/types/BalanceDelta.sol";
 import {IPoolManager} from "v4-core/interfaces/IPoolManager.sol";
 import {Hooks} from "v4-core/libraries/Hooks.sol";
-
+import "@openzeppelin/contracts/access/AccessControl.sol";
+import "./IChallengeManager.sol";
 /**
  * @title PointPool
  * @dev A contract that implements a point system for Uniswap V4 liquidity providers and traders.
  * It uses Chainlink price feeds to dynamically allocate points based on the USD value of ETH.
  */
-contract PointPool is ERC20, BaseHook {
+contract PointPool is ERC20, BaseHook, AccessControl {
+    bytes32 public constant CHALLENGE_MANAGER_ROLE =
+        keccak256("CHALLENGE_MANAGER_ROLE");
+
     using CurrencyLibrary for Currency;
     using BalanceDeltaLibrary for BalanceDelta;
 
@@ -26,8 +30,12 @@ contract PointPool is ERC20, BaseHook {
     mapping(address => uint256) public userLevels;
     mapping(address => uint256) public userBadges;
 
+    mapping(address => uint256) private liquidityProvided;
+    mapping(address => uint256) private swapVolume;
+
     uint256 public constant POINTS_PER_LEVEL = 100;
     uint256 public constant MAX_LEVEL = 100;
+    IChallengeManager public challengeManager;
 
     event LevelUp(address indexed user, uint256 newLevel);
     event BadgeEarned(address indexed user, uint256 badgeId);
@@ -39,6 +47,8 @@ contract PointPool is ERC20, BaseHook {
         address _ethUsdPriceFeed
     ) BaseHook(_manager) ERC20(_name, _symbol, 18) {
         ethUsdPriceFeed = AggregatorV3Interface(_ethUsdPriceFeed);
+        _grantRole(DEFAULT_ADMIN_ROLE, msg.sender);
+        _setRoleAdmin(CHALLENGE_MANAGER_ROLE, DEFAULT_ADMIN_ROLE);
     }
 
     function getHookPermissions()
@@ -66,12 +76,6 @@ contract PointPool is ERC20, BaseHook {
             });
     }
 
-    mapping(address => uint256) public userPoints;
-
-    function getUserPoints(address user) external view returns (uint256) {
-        return userPoints[user];
-    }
-
     function afterSwap(
         address sender,
         PoolKey calldata,
@@ -88,6 +92,7 @@ contract PointPool is ERC20, BaseHook {
         }
         uint256 pointsToAward = calculatePoints(ethAmount);
         addPoints(sender, pointsToAward);
+        recordSwap(sender, ethAmount);
         return (this.afterSwap.selector, 0);
     }
     function afterAddLiquidity(
@@ -100,6 +105,7 @@ contract PointPool is ERC20, BaseHook {
         uint256 ethAmount = uint256(abs(delta.amount0()));
         uint256 pointsToAward = calculatePoints(ethAmount);
         addPoints(sender, pointsToAward);
+        recordLiquidityProvision(sender, ethAmount);
         return BaseHook.afterAddLiquidity.selector;
     }
 
@@ -146,9 +152,41 @@ contract PointPool is ERC20, BaseHook {
             if (newLevel == MAX_LEVEL) awardBadge(user, 3); // Max level badge
         }
     }
+    function recordLiquidityProvision(address user, uint256 amount) internal {
+        liquidityProvided[user] += amount;
+    }
+
+    function recordSwap(address user, uint256 amount) internal {
+        swapVolume[user] += amount;
+    }
+
+    function getLiquidityProvided(
+        address user
+    ) external view returns (uint256) {
+        return liquidityProvided[user];
+    }
+
+    function getSwapVolume(address user) external view returns (uint256) {
+        return swapVolume[user];
+    }
 
     function addPoints(address user, uint256 points) internal {
         _mint(user, points);
         checkLevelUpAndBadges(user);
+    }
+
+    function setChallengeManager(
+        address _challengeManager
+    ) external onlyRole(DEFAULT_ADMIN_ROLE) {
+        grantRole(CHALLENGE_MANAGER_ROLE, _challengeManager);
+        challengeManager = IChallengeManager(_challengeManager);
+    }
+    function awardPointsAndBadge(
+        address user,
+        uint256 points,
+        uint256 badgeId
+    ) external onlyRole(CHALLENGE_MANAGER_ROLE) {
+        addPoints(user, points);
+        awardBadge(user, badgeId);
     }
 }
