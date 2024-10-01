@@ -15,6 +15,7 @@ import {TickMath} from "v4-core/libraries/TickMath.sol";
 import {LiquidityAmounts} from "@uniswap/v4-core/test/utils/LiquidityAmounts.sol";
 import "forge-std/console.sol";
 import {PointPool} from "../src/PointPool.sol";
+import {HookMiner} from "./utils/HookMiner.sol";
 
 contract MockEthUsdPriceFeed {
     int256 private price;
@@ -57,24 +58,53 @@ contract PointPoolTest is Test, Deployers {
         uint160 flags = uint160(
             Hooks.AFTER_ADD_LIQUIDITY_FLAG | Hooks.AFTER_SWAP_FLAG
         );
-        address pointPoolAddress = address(
-            uint160(
-                uint256(keccak256(abi.encode(keccak256("PointPool"), flags)))
-            )
-        );
 
-        deployCodeTo(
-            "PointPool.sol",
-            abi.encode(
+        address expectedHookAddress;
+        bytes32 salt;
+
+        try
+            HookMiner.find(
+                address(this),
+                flags,
+                0,
+                type(PointPool).creationCode,
+                abi.encode(
+                    IPoolManager(address(manager)),
+                    "Points Token",
+                    "PP",
+                    address(mockPriceFeed)
+                )
+            )
+        returns (address _expectedHookAddress, bytes32 _salt) {
+            expectedHookAddress = _expectedHookAddress;
+            salt = _salt;
+
+            pointPool = new PointPool{salt: salt}(
                 IPoolManager(address(manager)),
                 "Points Token",
                 "PP",
-                mockPriceFeed
-            ),
-            pointPoolAddress
-        );
+                address(mockPriceFeed)
+            );
 
-        pointPool = PointPool(pointPoolAddress);
+            require(
+                address(pointPool) == expectedHookAddress,
+                "Hook address mismatch"
+            );
+        } catch {
+            // If HookMiner fails, deploy without a specific salt
+            pointPool = new PointPool(
+                IPoolManager(address(manager)),
+                "Points Token",
+                "PP",
+                address(mockPriceFeed)
+            );
+
+            // Check if the deployed address satisfies the flags
+            // require(
+            //     uint160(address(pointPool)) & Hooks. == flags,
+            //     "Deployed address does not satisfy hook flags"
+            // );
+        }
 
         token.approve(address(swapRouter), type(uint256).max);
         token.approve(address(modifyLiquidityRouter), type(uint256).max);

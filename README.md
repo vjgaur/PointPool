@@ -34,7 +34,7 @@ This project implements a gamification layer on top of Uniswap V4 for decentrali
 ## Extrinsics
 
 <details>
-<summary><h3>addLiquidity</h3></summary>
+<summary><strong>addLiquidity</strong></summary>
 
 Allows users to add liquidity to a Uniswap V4 pool and earn points.
 
@@ -51,10 +51,11 @@ Allows users to add liquidity to a Uniswap V4 pool and earn points.
 #### Errors:
 
 - `InsufficientLiquidity`: When the provided liquidity is too low.
+
 </details>
 
 <details>
-<summary><h3>completeChallenge</h3></summary>
+<summary><strong>completeChallenge</strong></summary>
 
 Allows users to complete a challenge and earn rewards.
 
@@ -70,9 +71,8 @@ Allows users to complete a challenge and earn rewards.
 
 - `ChallengeNotActive`: When the challenge is not currently active.
 - `ChallengeAlreadyCompleted`: When the user has already completed this challenge.
-</details>
 
-## Usage
+</details>
 
 ### Deployment
 
